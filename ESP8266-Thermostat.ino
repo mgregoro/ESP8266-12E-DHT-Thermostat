@@ -11,17 +11,14 @@
 #include <DHT.h>
 #include <ctype.h>
 #include "ESPTemplateProcessor.h"
-
-#define DHTTYPE DHT22
-#define DHTPIN  2 // D4
-#define RELAYPIN 16 // D0
+#include "Configuration.h"
 
 // Wifi Setup
-const char* ssid     = "the_shack";
-const char* password = "br@1nd3ad";
+const char* ssid     = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 // Our hostname
-const char* hostname = "thermostat";
+const char* hostname = MDNS_HOSTNAME;
 
 // Where we'll store our configuration
 const String propertiesFile = "prop.dat";
