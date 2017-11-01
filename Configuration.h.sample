@@ -1,0 +1,12 @@
+
+// DHT11 or DHT22
+#define DHTTYPE DHT22
+
+// PINs for the sensor and relay
+#define DHTPIN  2 // D4
+#define RELAYPIN 16 // D0
+
+// wifi configuration
+#define WIFI_SSID "your_ssid"
+#define WIFI_PASSWORD "wifi_password"
+#define MDNS_HOSTNAME "thermostat"
