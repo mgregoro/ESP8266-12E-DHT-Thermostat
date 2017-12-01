@@ -1,15 +1,12 @@
-/* ESP8266 Thermostat
+/* ESP8266/ESP32 Thermostat
  * (c) 2017 Michael Gregorowicz
  * Remixed from https://github.com/dmainmon/ESP8266-12E-DHT-Thermostat by Damon Borgnino
  * Changes include: not dependent on cloud services, mobile friendly UI
  */
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <ESP8266mDNS.h>
-#include <ESP8266WebServer.h>
-#include <FS.h>
+
 #include <DHT.h>
 #include <ctype.h>
+#include "ESP8266-Thermostat.h"
 #include "ESPTemplateProcessor.h"
 #include "Configuration.h"
 
@@ -39,7 +36,7 @@ bool heatOn = false;
 unsigned long heatStarted = 0;
 unsigned long heatLastRanFor = 0;
 
-ESP8266WebServer server(80);
+WEBSERVER server(80);
 DHT dht(DHTPIN, DHTTYPE, 15);
 
 float humidity, temp_f;  // Input from the DHT

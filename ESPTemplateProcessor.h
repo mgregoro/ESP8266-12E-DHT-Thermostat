@@ -1,14 +1,11 @@
 #ifndef ESP_TEMPLATE_PROCESSOR_H
 #define ESP_TEMPLATE_PROCESSOR_H
 
-#include <ESP8266WebServer.h>
-#include <FS.h>
-
 typedef String ProcessorCallback(const String& key);
 
 class ESPTemplateProcessor {
   public:
-    ESPTemplateProcessor(ESP8266WebServer& _server) :
+    ESPTemplateProcessor(WEBSERVER& _server) :
       server(_server)
     {
     }
@@ -94,7 +91,6 @@ class ESPTemplateProcessor {
 
 
   private:
-    ESP8266WebServer &server;
+    WEBSERVER &server;
 };
-
 #endif
