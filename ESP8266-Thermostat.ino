@@ -4,11 +4,9 @@
  * Changes include: not dependent on cloud services, mobile friendly UI
  */
 
-#include <DHT.h>
-#include <ctype.h>
+#include "Configuration.h"
 #include "ESP8266-Thermostat.h"
 #include "ESPTemplateProcessor.h"
-#include "Configuration.h"
 
 // Wifi Setup
 const char* ssid     = WIFI_SSID;
@@ -17,34 +15,60 @@ const char* password = WIFI_PASSWORD;
 // Our hostname
 const char* mdns_hostname = MDNS_HOSTNAME;
 
+// MQTT setup
+const char* mqttClientID = MQTT_CLIENTID;
+const char* mqttUserID = MQTT_USER;
+const char* mqttUserPassword = MQTT_PASSWORD;
+
+// MQTT topics from this host
+const char* _t_initialization_topic = INITIALIZATION_TOPIC;
+const char* _t_humidity_topic = HUMIDITY_TOPIC;
+const char* _t_temperature_topic = TEMPERATURE_TOPIC;
+const char* _t_furnace_start_topic = FURNACE_START_TOPIC;
+const char* _t_furnace_stop_topic = FURNACE_STOP_TOPIC;
+const char* _t_furnace_runtime_topic = FURNACE_RUNTIME_TOPIC;
+
 // Where we'll store our configuration (on flash)
 const String propertiesFile = "prop.dat";
 
 /* Hard coded temperature "skew" .. how far to overshoot the target so 
  * we don't flap the furnace on and off..
  */
-const float ttSkew = 0.75;
+const float ttSkew = 1.75;
 
 /* Also hard coded a bias if you think your DHT is lying, this is very 
- * subjective, but, a compile time tuneable just for you.
+ * subjective, but, a compile time tuneable just for you.  Merry Christams
  */
 const float temp_f_bias = 0;
 
-int pollId = 1;
+/*
+ * Some like it hot.  I like it at 69.  Author's privilege, but overridden by the UI
+ */
 float targetTemperature = 69;
+
+// It's ok to poll the DHT22 every 10 seconds.  Some sensors won't like this though.
+unsigned long pollInterval = 10000;
+
+// State Variables
+int pollId = 1;
 bool heatOn = false;
+unsigned long systemInitialized = 0;
 unsigned long heatStarted = 0;
+unsigned long heatStopped = 0;
 unsigned long heatLastRanFor = 0;
 
+// Initialize the web server, DHT sensor, MQTT pubsub
 WEBSERVER server(80);
 DHT dht(DHTPIN, DHTTYPE, 15);
+WiFiClient espClient;
+PubSubClient mqtt_c(espClient);
 
-float humidity, temp_f;  // Input from the DHT
+// These will have data from the sensors soon.  I promise.
+float humidity = 0, temp_f = 0;  // Input from the DHT
 String webString = "";   // To store rendered web pages
 String webMessage = "";
 
 unsigned long lastPollTime = 0;                     // will store last temp was read
-unsigned long pollInterval = 20000;                 // interval at which to read sensor (ms)
 
 /*
  * Arduino Functions
@@ -68,6 +92,14 @@ void setup(void) {
 
     Serial.print("Obtained IP address: ");
     Serial.println(WiFi.localIP());
+
+    mqtt_c.setServer(MQTT_SERVER, 1883);
+    mqtt_c.setCallback(subCallback);
+
+    if (mqtt_connect()) {
+        systemInitialized = millis();
+        publish(_t_initialization_topic, String(systemInitialized, DEC));
+    }
 
     dht.begin();
     delay(10);
@@ -175,8 +207,40 @@ void loop(void) {
 
         pollId++;
     }
+    
+
+    if (!mqtt_c.loop()) {
+        if (!mqtt_connect()) {
+          delay(250);
+          if (!mqtt_connect()) {
+            Serial.println("[warning] error connecting to MQTT sevice");
+          }
+        }
+    }
 
     server.handleClient();
+}
+
+/*
+ * Callback for thermostat/settemp
+ */
+
+void subCallback(char* topic, byte* payload, unsigned int length) {
+    if (String(topic).startsWith("command/settemp")) {
+        unsigned char* p = (byte*)malloc(length);
+        memcpy(p, payload, length);
+        targetTemperature = String((char*)payload).toInt();
+        updatePropertiesFile();
+        pollTemperature();
+    } else if (String(topic).startsWith("thermostat/temperature")) {
+        unsigned char* p = (byte*)malloc(length);
+        memcpy(p, payload, length);
+        temp_f = (
+            (temp_f + temp_f_bias + String((char*)payload).toFloat()) / 2
+        );
+    } else {
+        Serial.println("Unhandled topic received: " + String(topic));
+    }   
 }
 
 /*
@@ -187,12 +251,16 @@ void turnHeatOn() {
     digitalWrite(RELAYPIN, HIGH);
     heatOn = true;
     heatStarted = millis();
+    publish(_t_furnace_start_topic, String(heatStarted, DEC));
 }
 
 void turnHeatOff() {
     digitalWrite(RELAYPIN, LOW);
     heatOn = false;
-    heatLastRanFor = ((millis() - heatStarted) / 1000);
+    heatStopped = millis();
+    heatLastRanFor = ((heatStopped - heatStarted) / 1000);
+    publish(_t_furnace_stop_topic, String(heatStopped, DEC));
+    publish(_t_furnace_runtime_topic, String(heatLastRanFor, DEC));
 }
 
 unsigned long heatRunningFor() {
@@ -200,6 +268,48 @@ unsigned long heatRunningFor() {
         return ((millis() - heatStarted) / 1000);
     }
     return 0;
+}
+
+bool mqtt_connect() {
+    bool _connected = false;
+    if (mqtt_c.connect(mqttClientID)) {
+        _connected = true;
+        Serial.println("[debug] MQTT connection established in 1 tries");
+    } else {
+        delay(500);
+        if (mqtt_c.connect(mqttClientID)) {
+            _connected = true;
+            Serial.println("[debug] MQTT connection established in 2 tries");
+        } else {
+            delay(500);
+            if (mqtt_c.connect(mqttClientID)) {
+                _connected = true;
+                Serial.println("[debug] MQTT connection established in 3 tries");
+            }
+        }
+    }
+    
+    if (_connected) {
+        mqtt_c.subscribe("command/settemp");
+        mqtt_c.subscribe("sensor/temperature/#");
+    }
+    
+    return _connected;
+}
+
+bool publish(String topic, String payload) {
+    bool _published = false;
+    if (mqtt_c.connected()) {
+        mqtt_c.publish(topic.c_str(), payload.c_str());
+        _published = true;
+    } else {
+        mqtt_c.disconnect();
+        if (mqtt_connect()) {
+            mqtt_c.publish(topic.c_str(), payload.c_str());
+            _published = true;
+        }
+    }
+    return _published;
 }
 
 // reads the temp and humidity from the DHT sensor and sets the global variables for both
@@ -215,11 +325,15 @@ void pollTemperature() {
     humidity = h;
   }
   
+  publish(_t_humidity_topic, String(humidity, DEC));
+  
   if (isnan(temp_f)) {
     Serial.println("DHT sensor reported Temp as NaN; keeping old value: " + String(temp_f, DEC));
   } else {
     temp_f = t + temp_f_bias;
   }
+  
+  publish(_t_temperature_topic, String(temp_f, DEC));
 }
 
 /*
@@ -228,21 +342,21 @@ void pollTemperature() {
 
 String generateTemplateKeyValuePairs (const String& key) {
     if (key == "CURRENT_TEMP") { 
-        return String(temp_f, DEC);
+        return String((int)temp_f, DEC);
     } else if (key == "TARGET_TEMP") {
-        return String(targetTemperature, DEC);
+        return String((int)targetTemperature, DEC);
     } else if (key == "POLL_INVERVALMS") {
         return String(pollInterval, DEC);
     } else if (key == "POLL_INTERVAL") {
         return String(pollInterval / 1000, DEC);
     } else if (key == "HEAT_STATUS") {
         return String(heatOn ? "ON" : "OFF");
+    } else if (key == "HUMIDITY_PCT") {
+        return String(humidity, DEC);
     } else if (key == "HEAT_RUN") {
-        return heatOn ? 
-               String("Furnace has been running for " + String(heatRunningFor(), DEC) + "seconds") : 
-               String("Furnace last ran for " + String(heatLastRanFor, DEC) + "seconds");
-    } else {
-      return "";
+        return (heatOn ? 
+               String("Furnace has been running for " + String(heatRunningFor(), DEC) + " seconds") : 
+               String("Furnace last ran for " + String(heatLastRanFor, DEC) + " seconds"));
     }
 }
 
@@ -251,7 +365,7 @@ void handleRoot() {
         Serial.println("[debug] root template successfully rendered and sent to client");
     } else {
         Serial.println("[error] root template render error");
-        server.send(500, "text/plain", String("<h1>Internal Server Error</h1><p>The author of this application is an idiot, and ") + 
+        server.send(500, "text/html", String("<h1>Internal Server Error</h1><p>The author of this application is an idiot, and ") + 
             String("now you are paying the price.  In fairness so is the President of the United States so... your fault too?</p>"));
     }
 }
@@ -259,20 +373,26 @@ void handleRoot() {
 // examine if 
 bool isValidNumber(String str) {
     bool oneDot = false;
-    for (byte i = 0; i < str.length(); i++) {
-        if (!isDigit(str.charAt(i)) || (!(String(str.charAt(i)) == String(".")))) {
+    String dot = String(".");
+    for (int i = 0; i < str.length(); i++) {
+        if (!isDigit(str.charAt(i)) && !(String(str.charAt(i)) == dot)) {
             // 0-9 or . are all that we accept.  this not isValidNumber.
             return false;
-        }
-        if (String(str.charAt(i)) == String(".")) {
-            if (oneDot) {
-                // floating point numbers can't have more than one dot!
-                return false;
-            } else {
-                oneDot = true;
+        } else {
+            if (String(str.charAt(i)) == dot) {
+                if (oneDot == true) {
+                    Serial.println("Yes.. there is.. there's got to be.");        
+                    Serial.println("More than one dot?!" + String(str.charAt(i)));
+                    // floating point numbers can't have more than one dot!
+                    return false;
+                } else {
+                    Serial.println("We got our one allowed dot...");
+                    oneDot = true;
+                }
             }
         }
     }
+    Serial.println("All clear.. Looks like we passed!");
     return true;
 }
 
@@ -330,27 +450,33 @@ void handleUpdate() {
         }
 
         if (something_changed) {
-            File f = SPIFFS.open(propertiesFile, "w");
-            if (!f) {
-                Serial.println("file open for properties failed");
-            } else {
-                // write the defaults to the properties file
-                Serial.println("====== Writing to properties file ======");
-
-                // comma delimited upper,lower,dhtpollinterval
-                f.print(targetTemperature);
-                f.print(",");
-                f.print(pollInterval);
-                f.print("\n");
-                f.close();
-                response += "CONFIG_WRITE_SUCCESS";
-            }
+            response += updatePropertiesFile();
         }
     } 
 
     pollTemperature();
 
     server.send(200, "text/plain", response);
+}
+
+String updatePropertiesFile() {
+    String response = "";
+    File f = SPIFFS.open(propertiesFile, "w");
+    if (!f) {
+        Serial.println("file open for properties failed");
+    } else {
+        // write the defaults to the properties file
+        Serial.println("====== Writing to properties file ======");
+
+        // comma delimited upper,lower,dhtpollinterval
+        f.print(targetTemperature);
+        f.print(",");
+        f.print(pollInterval);
+        f.print("\n");
+        f.close();
+        response += "CONFIG_WRITE_SUCCESS";
+    }
+    return response;
 }
 
 void handleHeatStatus() {
@@ -361,14 +487,25 @@ void handleHeatStatus() {
     }
 }
 
+// semicolon delimited informational tidbits...
 void handleGetCurrentTemp() {
-    server.send(200, "text/plain", String(temp_f, DEC));
+    server.send(200, "text/plain",     
+        String(
+            String((int)temp_f, DEC) + ";" + String((int)humidity, DEC) + ";" + 
+            String((int)targetTemperature, DEC) + ";" + String((int)pollInterval / 1000, DEC) + ";" +
+            (
+                heatOn ? 
+                    String("Furnace has been running for " + String(heatRunningFor(), DEC) + " seconds") : 
+                    String("Furnace last ran for " + String(heatLastRanFor, DEC) + " seconds")
+            )
+        )
+    );
 }
 
 void considerFurnaceStateChange() {
     if ((temp_f <= targetTemperature) && !heatOn) {
         turnHeatOn();
-        Serial.println("[info] below targetTemperature; turning ON furnace..");
+        Serial.println("[info] below targetTemperature; turning ON fhurnace..");
     } else if (heatOn && (temp_f >= (targetTemperature + ttSkew))) {
         turnHeatOff();
         Serial.println("[info] targetTemperature met; turning OFF furnace..");

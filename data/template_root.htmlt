@@ -1,30 +1,35 @@
 <!doctype html>
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <meta name="description" content="the thermostat for commonwealth">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
-  <link rel="stylesheet/css" type="text/css" href="milligram.css">
-  <script src="jquery-3.2.1.min.js"></script>
-  <script src="app.js"></script>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="the thermostat for commonwealth" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+  
+  <link rel="stylesheet" href="/milligram.css" />
+  <script src="/jquery-3.2.1.min.js"></script>
+  <script src="/app.js"></script>
   <title>Cur: %CURRENT_TEMP%; Tgt: %TARGET_TEMP%</title>
 </head>
 
 <body>
   <div class="container">
     <div class="row">
-      <div class="column-80" id="target-temp">
-          %TARGET_TEMP%
-      </div>
-      <div class="column-20">
-        <div class="row">
-          <div class="column">
-            <a class="button temp-button" id="target-up" href="#">⇧</a>
+      <div class="column">
+        <div class="column-20">
+          <div class="row">
+            <div class="column">
+              <input type="button" value="⇧ up ⇧" class="button temp-button" id="target-up" href="#"/>
+            </div>
           </div>
-        </div>
-        <div class="row">
-          <div class="column">
-            <a class="button temp-button" id="target-down" href="#">⇩</a>
+          <div class="row">
+            <div class="column" id="target-temp">
+              %TARGET_TEMP%
+            </div>
+          </div>
+          <div class="row">
+            <div class="column">
+              <input type="button" value="⇩ down ⇩" class="button temp-button" id="target-down" href="#"/>
+            </div>
           </div>
         </div>
       </div>
@@ -41,11 +46,15 @@
           <tbody>
             <tr>
               <td><b>Current Temp</b></td>
-              <td<span id="current-temp" data-cval="%CURRENT_TEMP%">%CURRENT_TEMP%</td>
+              <td><span id="current-temp" data-cval="%CURRENT_TEMP%">%CURRENT_TEMP%</span></td>
             </tr>
             <tr>
               <td><b>Target Temp</b></td>
               <td><span id="table-target-temp">%TARGET_TEMP%</span></td>
+            </tr>
+            <tr>
+              <td><b>Humidity</b></td>
+              <td><span id="table-humidity">%HUMIDITY_PCT%</span>&#37;</td>
             </tr>
             <tr>
               <td><b>Sensor Poll Interval</b></td>
@@ -53,13 +62,14 @@
             </tr>
             <tr>
               <td><b>Furnace Status</b></td>
-              <td id="heat-status" data-cval="%HEAT_STATUS%">Furnace is currently %HEAT_STATUS%</td>
+              <td id="heat-status" data-cval="%HEAT_STATUS%">Furnace is currently <span>%HEAT_STATUS%</span></td>
             </tr>
             <tr>
-              <td colspan="2"><em>%HEAT_RUN%</em></td>
+              <td colspan="2" id="furnace-summary"><em>%HEAT_RUN%</em></td>
             </tr>
           </tbody>
         </table>
       </div>
+    </div>
   </div>
 </body>

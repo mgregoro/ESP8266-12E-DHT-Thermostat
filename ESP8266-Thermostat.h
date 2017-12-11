@@ -1,3 +1,5 @@
+#include <pgmspace.h>
+
 #ifdef ARDUINO_ARCH_ESP32
 #include <WiFi.h>
 #include <WiFiClient.h>
@@ -14,7 +16,18 @@
 #define WEBSERVER ESP8266WebServer
 #endif
 
+#define INITIALIZATION_TOPIC "thermostat/initialize/_thermostat"
+#define HUMIDITY_TOPIC "sensor/humidity/_thermostat"
+#define TEMPERATURE_TOPIC "sensor/temperature/_thermostat"
+#define FURNACE_START_TOPIC "furnace/started/_thermostat"
+#define FURNACE_STOP_TOPIC "furnace/stopped/_thermostat"
+#define FURNACE_RUNTIME_TOPIC "furnace/lastruntime/_thermostat"
+
+#include <PubSubClient.h>
 #include <FS.h>
+#include <DHT.h>
+#include <ctype.h>
+#include <string.h>
 
 void turnHeatOn();
 void turnHeatOff();
@@ -23,9 +36,13 @@ void pollTemperature();
 String generateTemplateKeyValuePairs (const String& key);
 void handleRoot();
 bool isValidNumber(String str);
+bool mqtt_connect();
 void handleUpdate();
 void handleHeatStatus();
 void handleGetCurrentTemp();
+String updatePropertiesFile();
 void considerFurnaceStateChange();
 bool handleStaticFile(String path);
 String contentType(String filename);
+bool publish(String topic, String payload);
+void subCallback(char* topic, byte* payload, unsigned int length);

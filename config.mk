@@ -15,5 +15,6 @@ LIBS = $(ESP_LIBS)/ESP8266WebServer \
 endif
 
 LIBS += $(ROOT)/libraries/DHT
+LIBS += $(ROOT)/libraries/PubSubClient/src
 	
 UPLOAD_SPEED=115200

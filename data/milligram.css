@@ -7,24 +7,24 @@
  */
 
 @font-face {
-    font-family: 'Open Sans';
+    font-family: "Open Sans";
     font-style: normal;
     font-weight: 400;
-    src: local('Open Sans'), local('OpenSans'), url(OpenSans-Regular.woff) format('woff');
+    src: local("Open Sans"), url(/OpenSans-Regular.woff) format(woff), local(OpenSans);
 }
 
 #target-temp {
     font-size: 48px;
-    font-size: 100vw;
 }
 
 div.temp-button {
     font-size: 16px;
     font-size: 75vw;
+    min-width: 160px;
 }
 
 body.heat-is-on {
-    background-image: url("flames.gif");
+    background-image: url("/flames.png");
     background-repeat: repeat;
     color: #ccc;
 }

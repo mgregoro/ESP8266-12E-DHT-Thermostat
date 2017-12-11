@@ -3,8 +3,11 @@ var timerId = -1;
 $(function() {
     // poll for the current temperature every poll interval ms..
     setTimeout(function() {
-        $.get('/cur_temp', {}, function(temp) {
-            $('#current-temp').data('cval', temp).html(temp);
+        $.get('/cur_temp', {}, function(data) {
+            var vals = data.split(';');
+            $('#current-temp').data('cval', vals[0]).html(vals[0]);
+            $('#table-humidity').html("<span>" + vals[1] + "</span>");
+            $('#furnace-summary').html("<em>" + vals[2] + "</em>");
         });
     }, ($('#poll-interval').val() * 1000));
     
@@ -43,15 +46,21 @@ $(function() {
     });
     
     $('#poll-interval').change(function(e) {
-        var new_val = this.val();
-        if (new_val < )
-        update_pi(this.val());
-    });
-    
+        var new_val = parseInt($('#poll-interval').val(), 10);
+        if (new_val > 5) {
+            if (new_val > 60) {
+                alert("Poll intervall must be at most 60 seconds (1 minute)");
+            } else {
+                update_pi(new_val);
+            }
+        } else {
+            alert("Poll interval must be at least 5 seconds.");
+        }
+    });  
 });
 
 function get_target () {
-    return $.trim($('#target-temp').text());
+    return parseInt($.trim($('#target-temp').text()), 10);
 }
 
 function update_pi (new_val) {
