@@ -10,3 +10,9 @@
 #define WIFI_SSID "your_ssid"
 #define WIFI_PASSWORD "wifi_password"
 #define MDNS_HOSTNAME "thermostat"
+
+// mqtt information
+#define MQTT_SERVER "10.10.10.50"
+#define MQTT_USER "thermostat"
+#define MQTT_PASSWORD "some_like_it_hawt"
+#define MQTT_CLIENTID "tempertemper"

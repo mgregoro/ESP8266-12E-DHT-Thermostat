@@ -26,7 +26,8 @@ div.temp-button {
 body.heat-is-on {
     background-image: url("/flames.png");
     background-repeat: repeat;
-    color: #ccc;
+    background-color: #000;
+    color: #ddd;
 }
 
 *,
@@ -42,6 +43,7 @@ html {
 
 body {
   color: #606c76;
+  background-color: #fff;
   font-family: 'Open Sans', sans-serif;
   font-size: 1.6em;
   font-weight: 300;
