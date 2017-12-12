@@ -59,7 +59,7 @@ unsigned long heatLastRanFor = 0;
 
 // Initialize the web server, DHT sensor, MQTT pubsub
 WEBSERVER server(80);
-DHT dht(DHTPIN, DHTTYPE, 15);
+SimpleDHT22 dht22;
 WiFiClient espClient;
 PubSubClient mqtt_c(espClient);
 
@@ -100,9 +100,6 @@ void setup(void) {
         systemInitialized = millis();
         publish(_t_initialization_topic, String(systemInitialized, DEC));
     }
-
-    dht.begin();
-    delay(10);
 
     SPIFFS.begin();
     delay(10);
@@ -314,13 +311,22 @@ bool publish(String topic, String payload) {
 
 // reads the temp and humidity from the DHT sensor and sets the global variables for both
 void pollTemperature() {
-  int h = dht.readHumidity(); 
-  int t = dht.readTemperature(true);
+  float t = 0, h = 0;
+  int err = SimpleDHTErrSuccess;
+  if ((err = dht22.read2(DHTPIN, &t, &h, NULL)) != SimpleDHTErrSuccess) {
+    Serial.print("Read DHT22 failed err: ");
+    Serial.println(err);
+    delay(250);
+    return;
+  }
   
   // Check if any reads failed and report over debug if so.
   if (isnan(h)) {
     Serial.println("DHT sensor reported humidity as NaN; keeping old value: " + String(humidity, DEC));
     return;
+  } else if (h > 100) {
+    Serial.println("DHT sensor reported humidity as greater than 100%%; keeping old value: " + String(humidity, DEC));
+    return;  
   } else {
     humidity = h;
   }
@@ -330,7 +336,8 @@ void pollTemperature() {
   if (isnan(temp_f)) {
     Serial.println("DHT sensor reported Temp as NaN; keeping old value: " + String(temp_f, DEC));
   } else {
-    temp_f = t + temp_f_bias;
+    // gotta do the ferenheit conversion here as SimpleDHT doesn't do it for us.
+    temp_f = (t * 1.8) + 32 + temp_f_bias;
   }
   
   publish(_t_temperature_topic, String(temp_f, DEC));

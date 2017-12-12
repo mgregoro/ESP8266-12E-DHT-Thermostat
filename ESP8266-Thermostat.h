@@ -25,7 +25,7 @@
 
 #include <PubSubClient.h>
 #include <FS.h>
-#include <DHT.h>
+#include <SimpleDHT.h>
 #include <ctype.h>
 #include <string.h>
 
