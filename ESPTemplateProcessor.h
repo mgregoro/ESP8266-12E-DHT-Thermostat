@@ -31,8 +31,10 @@ class ESPTemplateProcessor {
       //server.sendContent(<chunk>)
 
       // Process!
-      static const uint16_t MAX = 100;
+      static const uint16_t MAX = 2048;
+      static const uint8_t MAXKEY = 20;
       String buffer;
+      int keyBufferLen = 0;
       int bufferLen = 0;
       String keyBuffer;
       int val;
@@ -56,19 +58,33 @@ class ESPTemplateProcessor {
               found = true;
             } else {
               keyBuffer += ch;
+              keyBufferLen++;
+              if (keyBufferLen > MAXKEY) {
+                // the key was too long so add this to the "regular" content buffer and break out.
+                buffer += "%" + keyBuffer;
+                keyBufferLen = 0;
+                break;
+              }
             }
           }
           
-          // Check for bad exit.
-          if (val == -1 && !found) {
+          if (found) {
+            // Get substitution value
+            String processed = processor(keyBuffer);
+            
+            // empty out the key buffer
+            keyBufferLen = 0;
+            keyBuffer = "";
+            
+            Serial.print("Lookup '"); Serial.print(keyBuffer); Serial.print("' received: "); Serial.println(processed);
+            server.sendContent(processed);
+          } else if (val == -1 && !found) {
             Serial.print("Cannot process "); Serial.print(filePath); Serial.println(": Unable to parse.");
             return false;
+          } else {
+            continue;
           }
 
-          // Get substitution
-          String processed = processor(keyBuffer);
-          Serial.print("Lookup '"); Serial.print(keyBuffer); Serial.print("' received: "); Serial.println(processed);
-          server.sendContent(processed);
         } else {
           bufferLen++;
           buffer += ch;

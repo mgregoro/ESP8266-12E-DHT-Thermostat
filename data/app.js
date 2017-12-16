@@ -6,8 +6,10 @@ $(function() {
         $.get('/cur_temp', {}, function(data) {
             var vals = data.split(';');
             $('#current-temp').data('cval', vals[0]).html(vals[0]);
-            $('#table-humidity').html("<span>" + vals[1] + "</span>");
-            $('#furnace-summary').html("<em>" + vals[2] + "</em>");
+            $('#table-humidity').data('cval', vals[1]).html(vals[1]);
+            $('#target-temp').data('cval', vals[2]).html(vals[2]);
+            $('#table-target-temp').data('cval', vals[2]).text(vals[2]);
+            $('#furnace-summary').html("<em>" + vals[3] + "</em>");
         });
     }, ($('#poll-interval').val() * 1000));
     
