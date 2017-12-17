@@ -24,7 +24,6 @@ const char* mqttUserPassword = MQTT_PASSWORD;
 const char* _t_initialization_topic = INITIALIZATION_TOPIC;
 const char* _t_humidity_topic = HUMIDITY_TOPIC;
 const char* _t_temperature_topic = TEMPERATURE_TOPIC;
-const char* _t_target_temperature_topic = TARGET_TEMPERATURE_TOPIC;
 const char* _t_furnace_start_topic = FURNACE_START_TOPIC;
 const char* _t_furnace_stop_topic = FURNACE_STOP_TOPIC;
 const char* _t_furnace_runtime_topic = FURNACE_RUNTIME_TOPIC;
@@ -48,7 +47,7 @@ const float temp_f_bias = 0;
 float targetTemperature = 69;
 
 // It's ok to poll the DHT22 every 10 seconds.  Some sensors won't like this though.
-unsigned long pollInterval = 20000;
+unsigned long pollInterval = 10000;
 
 // State Variables
 int pollId = 1;
@@ -81,8 +80,6 @@ void setup(void) {
 
     pinMode(RELAYPIN, OUTPUT);
     // Connect to WiFi network
-    WiFi.mode(WIFI_STA);
-    delay(50);
     WiFi.begin(ssid, password);
 
     Serial.print("\n\r \n\rWorking to connect");
@@ -97,7 +94,7 @@ void setup(void) {
     Serial.println(WiFi.localIP());
 
     mqtt_c.setServer(MQTT_SERVER, 1883);
-    mqtt_c.setCallback(mqttCallback);
+    mqtt_c.setCallback(subCallback);
 
     if (mqtt_connect()) {
         systemInitialized = millis();
@@ -204,11 +201,20 @@ void loop(void) {
         }
       
         considerFurnaceStateChange();
+
         pollId++;
     }
     
 
-    mqtt_c.loop();
+    if (!mqtt_c.loop()) {
+        if (!mqtt_connect()) {
+          delay(250);
+          if (!mqtt_connect()) {
+            Serial.println("[warning] error connecting to MQTT sevice");
+          }
+        }
+    }
+
     server.handleClient();
 }
 
@@ -216,7 +222,7 @@ void loop(void) {
  * Callback for thermostat/settemp
  */
 
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
+void subCallback(char* topic, byte* payload, unsigned int length) {
     if (String(topic).startsWith("command/settemp")) {
         unsigned char* p = (byte*)malloc(length);
         memcpy(p, payload, length);
@@ -263,9 +269,21 @@ unsigned long heatRunningFor() {
 
 bool mqtt_connect() {
     bool _connected = false;
-    if (mqtt_c.connect(mqttClientID, mqttUserID, mqttUserPassword)) {
+    if (mqtt_c.connect(mqttClientID)) {
         _connected = true;
         Serial.println("[debug] MQTT connection established in 1 tries");
+    } else {
+        delay(500);
+        if (mqtt_c.connect(mqttClientID)) {
+            _connected = true;
+            Serial.println("[debug] MQTT connection established in 2 tries");
+        } else {
+            delay(500);
+            if (mqtt_c.connect(mqttClientID)) {
+                _connected = true;
+                Serial.println("[debug] MQTT connection established in 3 tries");
+            }
+        }
     }
     
     if (_connected) {
@@ -282,6 +300,7 @@ bool publish(String topic, String payload) {
         mqtt_c.publish(topic.c_str(), payload.c_str());
         _published = true;
     } else {
+        mqtt_c.disconnect();
         if (mqtt_connect()) {
             mqtt_c.publish(topic.c_str(), payload.c_str());
             _published = true;
@@ -322,7 +341,6 @@ void pollTemperature() {
   }
   
   publish(_t_temperature_topic, String(temp_f, DEC));
-  publush(_t_target_temperature_topic, String(targetTemperature, DEC));
 }
 
 /*
@@ -480,7 +498,7 @@ void handleHeatStatus() {
 void handleGetCurrentTemp() {
     server.send(200, "text/plain",     
         String(
-            String((int)temp_f, DEC) + ";" + String((int)humidity, DEC) + ";" + String(int(targetTemperature), DEC) + ";" +
+            String((int)temp_f, DEC) + ";" + String((int)humidity, DEC) + ";" + 
             String((int)targetTemperature, DEC) + ";" + String((int)pollInterval / 1000, DEC) + ";" +
             (
                 heatOn ? 
@@ -492,17 +510,15 @@ void handleGetCurrentTemp() {
 }
 
 void considerFurnaceStateChange() {
-  if (temp_f != 0) {
     if ((temp_f <= targetTemperature) && !heatOn) {
-      turnHeatOn();
-      Serial.println("[info] below targetTemperature; turning ON fhurnace..");
+        turnHeatOn();
+        Serial.println("[info] below targetTemperature; turning ON fhurnace..");
     } else if (heatOn && (temp_f >= (targetTemperature + ttSkew))) {
-      turnHeatOff();
-      Serial.println("[info] targetTemperature met; turning OFF furnace..");
+        turnHeatOff();
+        Serial.println("[info] targetTemperature met; turning OFF furnace..");
     } else {
-      Serial.println("[info] furnace state change not required");
+        Serial.println("[info] furnace state change not required");
     }
-  }
 }
 
 // 404 handler passes through to static file handler
