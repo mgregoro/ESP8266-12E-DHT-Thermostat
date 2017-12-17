@@ -81,9 +81,6 @@ function update_target (new_val) {
     timerId = setTimeout(function() {
         $.post('/update', {
             "temp_target": new_val
-        },  
-        function(e) {
-            $('#target-temp').fadeIn(50).fadeOut(75).fadeIn(75).fadeOut(100).fadeIn(100);
         });
     }, 500);
 }
