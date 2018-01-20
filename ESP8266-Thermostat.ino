@@ -57,11 +57,11 @@ unsigned long heatStarted = 0;
 unsigned long heatStopped = 0;
 unsigned long heatLastRanFor = 0;
 
-// Initialize the web server, DHT sensor, MQTT pubsub
+// Set WiFi Mode, initialize the web server, DHT sensor, MQTT pubsub
 WEBSERVER server(80);
-SimpleDHT22 dht22;
 WiFiClient espClient;
-PubSubClient mqtt_c(espClient);
+SimpleDHT22 dht22;
+PubSubClient mqtt_c;
 
 // These will have data from the sensors soon.  I promise.
 float humidity = 0, temp_f = 0;  // Input from the DHT
@@ -77,9 +77,10 @@ unsigned long lastPollTime = 0;                     // will store last temp was 
 void setup(void) {
     // You can open the Arduino IDE Serial Monitor window to see what the code is doing
     Serial.begin(115200);  // Serial connection from ESP-01 via 3.3v console cable
-
     pinMode(RELAYPIN, OUTPUT);
+    
     // Connect to WiFi network
+    WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 
     Serial.print("\n\r \n\rWorking to connect");
@@ -92,7 +93,9 @@ void setup(void) {
 
     Serial.print("Obtained IP address: ");
     Serial.println(WiFi.localIP());
-
+    
+    // set up mqtt
+    mqtt_c.setClient(espClient);
     mqtt_c.setServer(MQTT_SERVER, 1883);
     mqtt_c.setCallback(subCallback);
 
@@ -269,17 +272,17 @@ unsigned long heatRunningFor() {
 
 bool mqtt_connect() {
     bool _connected = false;
-    if (mqtt_c.connect(mqttClientID)) {
+    if (mqtt_c.connect(mqttClientID, mqttUserID, mqttUserPassword)) {
         _connected = true;
         Serial.println("[debug] MQTT connection established in 1 tries");
     } else {
         delay(500);
-        if (mqtt_c.connect(mqttClientID)) {
+        if (mqtt_c.connect(mqttClientID, mqttUserID, mqttUserPassword)) {
             _connected = true;
             Serial.println("[debug] MQTT connection established in 2 tries");
         } else {
             delay(500);
-            if (mqtt_c.connect(mqttClientID)) {
+            if (mqtt_c.connect(mqttClientID, mqttUserID, mqttUserPassword)) {
                 _connected = true;
                 Serial.println("[debug] MQTT connection established in 3 tries");
             }
@@ -288,7 +291,11 @@ bool mqtt_connect() {
     
     if (_connected) {
         mqtt_c.subscribe("command/settemp");
-        mqtt_c.subscribe("sensor/temperature/#");
+        mqtt_c.subscribe("thermostat/temperature");
+    } else {
+        Serial.println("[debug] mqtt_connect failed to connect after trying 3 times");
+        Serial.print("[debug] mqtt client state: ");
+        Serial.println(String(mqtt_c.state(), DEC));
     }
     
     return _connected;
@@ -511,8 +518,13 @@ void handleGetCurrentTemp() {
 
 void considerFurnaceStateChange() {
     if ((temp_f <= targetTemperature) && !heatOn) {
-        turnHeatOn();
-        Serial.println("[info] below targetTemperature; turning ON fhurnace..");
+        if (temp_f == 0 && humidity == 0) {
+          turnHeatOff();
+          Serial.println("[info] temperature and humidity are both zero; assuming improper reading from DHT, ensuring furnace remains OFF until we get a proper reading");
+        } else {
+          turnHeatOn();
+          Serial.println("[info] below targetTemperature; turning ON furnace..");
+        }
     } else if (heatOn && (temp_f >= (targetTemperature + ttSkew))) {
         turnHeatOff();
         Serial.println("[info] targetTemperature met; turning OFF furnace..");
