@@ -9,7 +9,7 @@ $(function() {
             $('#table-humidity').data('cval', vals[1]).html(vals[1]);
             $('#target-temp').data('cval', vals[2]).html(vals[2]);
             $('#table-target-temp').data('cval', vals[2]).text(vals[2]);
-            $('#furnace-summary').html("<em>" + vals[3] + "</em>");
+            $('#furnace-summary').html("<em>" + vals[4] + "</em>");
         });
     }, ($('#poll-interval').val() * 1000));
     
