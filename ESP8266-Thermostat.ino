@@ -87,7 +87,7 @@ void setup(void) {
 
     // Wait for connection
     while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
+        delay(200);
         Serial.print(".");
     }
 
@@ -104,7 +104,11 @@ void setup(void) {
         publish(_t_initialization_topic, String(systemInitialized, DEC));
     }
 
-    SPIFFS.begin();
+    if (SPIFFS.begin()) {
+      Serial.println("[debug] SPIFFS filesystem initialized sucessfully");
+    } else {
+      Serial.println("[debug] Error initializing SPIFFS filesystem");
+    }
     delay(10);
 
     bool writeProperties = false;
@@ -149,8 +153,8 @@ void setup(void) {
     }
 
     // Debug output current configuration values
-    Serial.print("[debug] target temp: " + String(targetTemperature, DEC) + " °F");
-    Serial.print("[debug] poll interval: " + String(pollInterval, DEC) + "ms");
+    Serial.println("[debug] target temp: " + String(targetTemperature, DEC) + " °F");
+    Serial.println("[debug] poll interval: " + String(pollInterval, DEC) + "ms");
 
     // Load in first values of temperature data
     pollTemperature();
@@ -211,7 +215,7 @@ void loop(void) {
 
     if (!mqtt_c.loop()) {
         if (!mqtt_connect()) {
-          delay(250);
+          delay(200);
           if (!mqtt_connect()) {
             Serial.println("[warning] error connecting to MQTT sevice");
           }
@@ -276,12 +280,12 @@ bool mqtt_connect() {
         _connected = true;
         Serial.println("[debug] MQTT connection established in 1 tries");
     } else {
-        delay(500);
+        delay(200);
         if (mqtt_c.connect(mqttClientID, mqttUserID, mqttUserPassword)) {
             _connected = true;
             Serial.println("[debug] MQTT connection established in 2 tries");
         } else {
-            delay(500);
+            delay(200);
             if (mqtt_c.connect(mqttClientID, mqttUserID, mqttUserPassword)) {
                 _connected = true;
                 Serial.println("[debug] MQTT connection established in 3 tries");
@@ -323,7 +327,7 @@ void pollTemperature() {
   if ((err = dht22.read2(DHTPIN, &t, &h, NULL)) != SimpleDHTErrSuccess) {
     Serial.print("Read DHT22 failed err: ");
     Serial.println(err);
-    delay(250);
+    delay(200);
     return;
   }
   
